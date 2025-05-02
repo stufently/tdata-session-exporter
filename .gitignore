@@ -1,0 +1,9 @@
+/venv/
+*.session*
+/app/__pycache__/
+.env
+app/proxy.txt
+logs/*
+tdatas/tdata/
+tdatas2/tdata/
+.idea
