@@ -1,0 +1,13 @@
+services:
+  autosender:
+    build: .
+    container_name: extractor
+    volumes:
+      # Монтируем директории с данными
+      - ./app:/app
+      - ./tdatas:/app/tdatas
+      - ./sessions:/app/sessions
+      - ./.env:/app/.env
+    env_file:
+      - .env  # Монтируем .env файл с переменными окружения
+    restart: on-failure
