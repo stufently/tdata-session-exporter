@@ -1,86 +1,42 @@
-# TGAutoReplyBot
+# TData Session Exporter
 
-**Telegram Auto Reply Bot** is a self‑hosted agent that uses a regular Telegram user account to automatically reply to private messages, mimicking a human operator. By leveraging **Telethon** and **OpenTele**, it bypasses Bot API limitations and provides a seamless conversation experience powered by **GPT‑4.1 mini**.
+Небольшой инструмент для извлечения строки сессии Telegram из папки `tdata` (Telegram Desktop) и сохранения её в формате переменной окружения в файле `.env`.
 
----
+## Возможности
 
-## 🧠 About the Project
+- Берёт папку `tdata`, как её хранит Telegram Desktop (Windows, macOS, Linux)  
+- Декодирует из неё MTProto‑ключи и идентификатор дата‑центра  
+- Собирает корректную строку сессии  
+- Сохраняет результат в файл `.env` с переменной `TELEGRAM_SESSION`
 
-TGAutoReplyBot uses your existing **Telegram Desktop session (`tdata`)** to log in as a regular user (not a bot). This makes it indistinguishable from a human in chat, allowing for natural interactions.
+## Требования
 
-The bot:
+- Python 3.8 или выше  
+- Пакет `tdesktop` или аналог для чтения `tdata` (см. `requirements.txt`)
 
-- Responds to private messages using **OpenAI GPT‑4.1 mini**.
-- Sends delayed greetings to mimic human behavior.
-- Handles multi-turn conversations via OpenAI **Assistant Threads**.
-- Maintains context per chat by caching thread IDs.
-- Forwards messages to a manager group (optional).
-- Runs using `Telethon`, `OpenTele`, and `asyncio` for full concurrency.
-- Requires no Bot API token — just your `tdata` folder from Telegram Desktop.
+## Установка
 
----
+```bash
+git clone https://github.com/stufently/tdata-session-exporter.git
+cd tdata-session-exporter
+python -m venv venv
+source venv/bin/activate       # Linux/macOS
+venv\Scripts\activate.bat      # Windows
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-## 🚀 Quick Start (Docker Compose)
+## 🐳 Docker Deployment
 
-1. **Clone the repository:**
+Run the service with Docker Compose:
 
-   ```bash
-   git clone https://github.com/stufently/TGAutoReplyBot.git
-   cd TGAutoReplyBot
-
-2. **Prepare your .env file**:
-   
-   Run the following command to create a working .env file based on the provided sample:
-   ```bash
-   cp .env.SAMPLE .env
-   ```
-   ✏️ Open .env in any text editor and fill in your values:
-   
-    - "OPENAI_API_KEY"
-   
-    - "ASSISTANT_ID"
-   
-    - "FORWARD_ENABLED, GROUP_CHAT_ID, PROXIES (optional)"
-
-3. **Place Telegram Desktop session**:
-
- - Locate your tdata folder from Telegram Desktop.
-
- - Copy it into the project folder as: tdatas/tdata/
-
-📁 Final structure should be: TGAutoReplyBot/tdatas/tdata/<tdata files>
-
-4. **Create required directories**:
-
-   ```bash
-   mkdir -p tdatas sessions
-These will store Telegram data and session files (needed for persistent login).
-
-
-5. **Build and run the bot locally**:
-      ```bash
-      docker-compose up --build -d
-      ```
-   This will build and run the bot in detached mode. It will pull the Docker image ghcr.io/stufently/tgautoreplybot:latest and start the bot with the necessary dependencies.
-
-6. **Check status or logs**:
- - Status:
-   ```bash
-   docker-compose ps
- - Logs:
-   ```bash
-   docker-compose logs -f
-
-📦 **Example docker-compose.yml**
-   ```bash
-   version: "3.8"
-   
-   services:
-     tgautoreplybot:
-       image: ghcr.io/stufently/tgautoreplybot:latest  # Build from local Dockerfile
-       container_name: tgautoreplybot
-       env_file: .env                  # Load environment variables
-       volumes:
-         - ./tdatas:/app/tdatas        # Telegram Desktop sessions
-         - ./sessions:/app/sessions    # Persist Telethon sessions
-       restart: unless-stopped         # Auto-restart on failure or reboot
+```bash
+docker-compose up -d
+```
+To update to a new image version:
+```
+bash
+docker-compose pull
+docker-compose down
+docker-compose up -d
+```
