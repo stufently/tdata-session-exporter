@@ -1,6 +1,6 @@
 services:
   autosender:
-    build: .
+    image: ghcr.io/stufently/tdata-session-exporter:latest
     container_name: extractor
     volumes:
       # Монтируем директории с данными
