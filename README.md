@@ -35,7 +35,6 @@ docker-compose up -d
 ```
 To update to a new image version:
 ```
-bash
 docker-compose pull
 docker-compose down
 docker-compose up -d
