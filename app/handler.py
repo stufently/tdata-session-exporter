@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import asyncio, logging, os, hashlib, argparse, json, time
+import asyncio, logging, os, hashlib, argparse, json, time, shutil
 from typing import Optional
 from telethon.sessions import StringSession
 from opentele.td import TDesktop
@@ -7,7 +7,7 @@ from opentele.api import API, UseCurrentSession
 from dotenv import set_key
 from opentele.exception import TFileNotFound
 
-from bundle import build_telethon_client_from_bundle
+# Поддержка бандлов через отдельный модуль была убрана в текущей версии.
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
@@ -65,21 +65,95 @@ class MyTelegramClient:
             return False
 
 
-async def authorize_from_bundle(json_path: str) -> bool:
+def _derive_basename_from_tdata(tdata_path: str) -> str:
+    base = os.path.basename(os.path.normpath(tdata_path))
+    if base.lower() == 'tdata':
+        return os.path.basename(os.path.dirname(os.path.normpath(tdata_path))) or 'account'
+    return base or 'account'
+
+
+def _find_single_tdata() -> Optional[str]:
+    def _is_valid_tdata(p: str) -> bool:
+        try:
+            _ensure_compat_tdata(p)
+            td = TDesktop(p)
+            return bool(td.accounts)
+        except Exception:
+            return False
+
+    candidates = []
+    # По стандартным путям
+    paths_to_check = [
+        os.environ.get('SIMPLE_TDATA_PATH'),
+        os.path.join('accounts'),
+        os.path.join('tdatas', 'tdata'),
+        'tdata',
+    ]
+    # accounts/*/tdata
+    acc_dir = os.path.join('accounts')
+    if os.path.isdir(acc_dir):
+        for name in os.listdir(acc_dir):
+            p = os.path.join(acc_dir, name, 'tdata')
+            if os.path.isdir(p):
+                candidates.append(p)
+    # добавляем прямые пути
+    for p in paths_to_check:
+        if not p:
+            continue
+        if os.path.isdir(p) and os.path.basename(os.path.normpath(p)).lower() == 'tdata':
+            candidates.append(p)
+    # Уникализируем
+    uniq = []
+    seen = set()
+    for p in candidates:
+        ap = os.path.abspath(p)
+        if ap not in seen:
+            seen.add(ap)
+            uniq.append(ap)
+    # Валидируем кандидатов через попытку чтения аккаунтов
+    valid = [p for p in uniq if _is_valid_tdata(p)]
+    if len(valid) == 1:
+        return valid[0]
+    # Если несколько валидных — попробуем предпочесть из accounts/*/tdata
+    valid_accounts = [p for p in valid if os.path.basename(os.path.dirname(p))]
+    if len(valid_accounts) == 1:
+        return valid_accounts[0]
+    return None
+
+
+def _ensure_compat_tdata(tdata_path: str) -> None:
+    """Готовит tdata к чтению: создает совместимые имена через symlink/копию.
+    Ничего не делает, если уже всё в норме. Безопасно вызывать многократно.
+    """
     try:
-        client, cfg = build_telethon_client_from_bundle(json_path)
-        async with client:
-            if not await client.is_user_authorized():
-                logger.error("Сессия недействительна или отозвана для бандла: %s", json_path)
-                return False
-            me = await client.get_me()
-            string_session = StringSession.save(client.session)
-            set_key(".env", TELEGRAM_SESSION_ENV_KEY, string_session)
-            logger.info("Сессия из бандла сохранена в .env. Пользователь: %s", me.id)
-            return True
-    except Exception as e:
-        logger.error("Ошибка авторизации из бандла %s: %s", json_path, e)
-        return False
+        # Файлы: key_data vs key_datas, map vs maps
+        pairs = [
+            (os.path.join(tdata_path, 'key_data'), os.path.join(tdata_path, 'key_datas')),
+            (os.path.join(tdata_path, 'map'), os.path.join(tdata_path, 'maps')),
+        ]
+        for expected, alt in pairs:
+            if not os.path.exists(expected) and os.path.exists(alt):
+                # Пытаемся создать symlink; если не получилось — копируем файл
+                try:
+                    os.symlink(alt, expected)
+                except Exception:
+                    try:
+                        if os.path.isfile(alt):
+                            shutil.copyfile(alt, expected)
+                    except Exception:
+                        pass
+
+        # Директория каталога базы: D877F783D5D3EF8C vs D877F783D5D3EF8Cs
+        expected_dir = os.path.join(tdata_path, 'D877F783D5D3EF8C')
+        alt_dir = os.path.join(tdata_path, 'D877F783D5D3EF8Cs')
+        if (not os.path.exists(expected_dir)) and os.path.isdir(alt_dir):
+            try:
+                os.symlink(alt_dir, expected_dir)
+            except Exception:
+                pass
+    except Exception:
+        # Не мешаем основному потоку при любой ошибке вспомогательной подготовки
+        pass
 
 
 async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
@@ -170,8 +244,7 @@ async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="TData/Bundle авторизация и экспорт")
-    parser.add_argument("--bundle", "-b", dest="bundle_json", help="Путь к JSON бандла (+ .session рядом)")
+    parser = argparse.ArgumentParser(description="TData экспорт/авторизация")
     # Экспорт бандла из tdata
     parser.add_argument("--export-tdata", dest="export_tdata", help="Путь к директории tdata для экспорта бандла")
     parser.add_argument("--export-out", dest="export_out", help="Директория для сохранения бандла")
@@ -193,18 +266,21 @@ async def main():
             logger.error("Экспорт бандла из tdata не удался")
         return
 
-    bundle_json = args.bundle_json or os.environ.get("BUNDLE_JSON_PATH")
-    if bundle_json:
-        if not os.path.exists(bundle_json):
-            logger.error("Файл бандла не найден: %s", bundle_json)
-            return
-        logger.info("Режим: авторизация из бандла JSON: %s", bundle_json)
-        ok = await authorize_from_bundle(bundle_json)
+    # Если аргументов нет — пытаемся простой экспорт:
+    auto_tdata = _find_single_tdata()
+    if auto_tdata:
+        basename = _derive_basename_from_tdata(auto_tdata)
+        logger.info("Обнаружен tdata: %s", auto_tdata)
+        ok = await export_bundle_from_tdata(
+            tdata_path=auto_tdata,
+            out_dir=os.getcwd(),
+            basename=basename,
+        )
         if not ok:
-            logger.error("Авторизация из бандла не удалась")
+            logger.error("Авто-экспорт бандла из tdata не удался")
         return
 
-    logger.info("Режим: авторизация из tdata")
+    logger.info("Режим: авторизация из tdata (стандартный путь)")
     client = MyTelegramClient("example_tdata")
     if not await client.authorize_from_tdata():
         logger.error("Авторизация не удалась")
