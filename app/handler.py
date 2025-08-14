@@ -7,15 +7,10 @@ from opentele.api import API, UseCurrentSession
 from dotenv import set_key
 from opentele.exception import TFileNotFound
 
-from bundle import build_telethon_client_from_bundle
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
-# Снижаем уровень логов Telethon, чтобы скрыть информационные сообщения вроде "User is already connected!"
-logging.getLogger("telethon").setLevel(logging.WARNING)
 
 TELEGRAM_SESSION_ENV_KEY = "TELEGRAM_SESSION"
-
 
 class MyTelegramClient:
     def __init__(self, tdata_name):
@@ -23,7 +18,7 @@ class MyTelegramClient:
         self.client = None
         self.me = None
 
-    async def authorize_from_tdata(self):
+    async def authorize(self):
         tdata_path = "tdatas/tdata/"
         if not os.path.exists(tdata_path):
             logger.error("Путь tdata не найден: %s", tdata_path)
@@ -206,7 +201,7 @@ async def main():
 
     logger.info("Режим: авторизация из tdata")
     client = MyTelegramClient("example_tdata")
-    if not await client.authorize_from_tdata():
+    if not await client.authorize():
         logger.error("Авторизация не удалась")
 
 if __name__ == "__main__":
