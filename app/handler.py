@@ -200,7 +200,7 @@ def _generate_device_meta(seed_key: str) -> dict:
     }
 
 
-async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
+async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: Optional[str] = None,
                                    api_id: Optional[int] = None, api_hash: Optional[str] = None) -> bool:
     if not os.path.isdir(tdata_path):
         logger.error("Директория tdata не найдена: %s", tdata_path)
@@ -218,8 +218,9 @@ async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
         logger.error("TFileNotFound: %s", e)
         return False
 
-    session_path = os.path.join(out_dir, f"{basename}.session")
-    json_path = os.path.join(out_dir, f"{basename}.json")
+    # Предварительное имя (если не задано явно — из структуры пути)
+    pre_basename = basename or _derive_basename_from_tdata(tdata_path)
+    session_path = os.path.join(out_dir, f"{pre_basename}.session")
 
     # Подготавливаем API класс для opentele (ожидается класс, а не инстанс)
     if not api_id or not api_hash:
@@ -283,6 +284,24 @@ async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
         lang_pack = os.environ.get("BUNDLE_LANG_PACK", meta["lang_pack"])
         lang_code = os.environ.get("BUNDLE_LANG_CODE", meta["lang_code"])
 
+        # Выбираем финальное имя по номеру телефона, если он есть
+        phone = getattr(me, 'phone', None) if me else None
+        if phone:
+            final_basename = phone if str(phone).startswith('+') else f"+{phone}"
+        else:
+            final_basename = pre_basename
+
+        # Если имя изменилось — переименуем .session
+        if final_basename != pre_basename and os.path.exists(session_path):
+            new_session_path = os.path.join(out_dir, f"{final_basename}.session")
+            try:
+                os.replace(session_path, new_session_path)
+                session_path = new_session_path
+            except Exception:
+                pass
+
+        json_path = os.path.join(out_dir, f"{final_basename}.json")
+
         cfg = {
             "app_id": int(CustomAPI.api_id),
             "app_hash": str(CustomAPI.api_hash),
@@ -311,7 +330,7 @@ async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
             "sex": None,
             "proxy": None,
             "ipv6": False,
-            "session_file": basename
+            "session_file": final_basename
         }
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False)
