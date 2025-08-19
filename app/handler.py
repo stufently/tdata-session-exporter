@@ -347,6 +347,23 @@ async def main():
             logger.error("Экспорт бандла из tdata не удался")
         return
 
+    # Упрощённый режим: задан только basename → ищем tdata автоматически, пишем в корень
+    if args.export_basename and not args.export_tdata and not args.export_out:
+        auto_tdata = _find_single_tdata()
+        if not auto_tdata:
+            logger.error("tdata не найден. Положите tdata в ./tdata или accounts/<имя>/tdata")
+            return
+        ok = await export_bundle_from_tdata(
+            tdata_path=auto_tdata,
+            out_dir=os.getcwd(),
+            basename=args.export_basename,
+            api_id=args.export_api_id,
+            api_hash=args.export_api_hash,
+        )
+        if not ok:
+            logger.error("Экспорт бандла из tdata не удался")
+        return
+
     # Если аргументов нет — пытаемся простой экспорт:
     auto_tdata = _find_single_tdata()
     if auto_tdata:
