@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-import asyncio, logging, os, hashlib, argparse, json, time, shutil
+import asyncio, logging, os, hashlib, argparse, json, time, shutil, platform, locale, random, string
 from typing import Optional
 from telethon.sessions import StringSession
 from opentele.td import TDesktop
 from opentele.api import API, UseCurrentSession
 from dotenv import set_key
 from opentele.exception import TFileNotFound
+from telethon import functions
 
 # Поддержка бандлов через отдельный модуль была убрана в текущей версии.
 
@@ -156,6 +157,49 @@ def _ensure_compat_tdata(tdata_path: str) -> None:
         pass
 
 
+def _generate_device_meta(seed_key: str) -> dict:
+    """Генерирует реалистичные метаданные устройства в стиле продаваемых бандлов.
+    Детеминированно по seed_key (например, basename), чтобы значения были стабильными.
+    """
+    rnd = random.Random(hashlib.md5(seed_key.encode('utf-8')).hexdigest())
+
+    # device: 7-10 заглавных букв/цифр + суффикс
+    length = rnd.randint(7, 10)
+    dev_core = ''.join(rnd.choice(string.ascii_uppercase + string.digits) for _ in range(length))
+    device = f"{dev_core}-EXTREME"
+
+    system = platform.system()
+    release = platform.release()
+    arch = platform.machine()
+
+    if system.lower().startswith('win'):
+        sdk = f"Windows {release if release else '10'}"
+        app_version = "6.0.2 x64" if '64' in arch or arch.endswith('64') else "6.0.2"
+    elif system.lower() == 'darwin':
+        sdk = "macOS"
+        app_version = "6.0.2 x64"
+    else:
+        sdk = f"Linux {release}" if release else "Linux"
+        app_version = "6.0.2 x64"
+
+    # Языки
+    try:
+        loc = locale.getdefaultlocale()
+        sys_code = (loc[0] or 'en').split('_')[0]
+    except Exception:
+        sys_code = 'en'
+
+    return {
+        "device": device,
+        "sdk": sdk,
+        "app_version": app_version,
+        "system_lang_pack": sys_code,
+        "system_lang_code": sys_code,
+        "lang_pack": "tdesktop",
+        "lang_code": sys_code,
+    }
+
+
 async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
                                    api_id: Optional[int] = None, api_hash: Optional[str] = None) -> bool:
     if not os.path.isdir(tdata_path):
@@ -200,22 +244,59 @@ async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: str,
         )
         async with client:
             me = await client.get_me()
+            # Пытаемся получить реальные данные устройства из текущей авторизации
+            current_device = None
+            try:
+                auths = await client(functions.account.GetAuthorizationsRequest())
+                if getattr(auths, 'authorizations', None):
+                    for a in auths.authorizations:
+                        if getattr(a, 'current', False):
+                            current_device = a
+                            break
+            except Exception:
+                current_device = None
 
-        # Собираем JSON (минимально необходимое + базовые метаданные)
+        # Собираем JSON в "продаваемом" формате
+        # Предпочитаем реальные значения из текущей авторизации, иначе — генерация/ENV
+        meta = _generate_device_meta(basename)
+        real_device = None
+        real_sdk = None
+        real_app_version = None
+        if current_device:
+            # device_model, platform, system_version, app_name, app_version
+            try:
+                if getattr(current_device, 'device_model', None):
+                    real_device = current_device.device_model
+                sv = getattr(current_device, 'system_version', None) or ''
+                pf = getattr(current_device, 'platform', None) or ''
+                real_sdk = (pf + ' ' + sv).strip() or None
+                av = getattr(current_device, 'app_version', None)
+                real_app_version = av if av else None
+            except Exception:
+                pass
+
+        device = os.environ.get("BUNDLE_DEVICE", real_device or meta["device"])
+        sdk = os.environ.get("BUNDLE_SDK", real_sdk or meta["sdk"])
+        app_version = os.environ.get("BUNDLE_APP_VERSION", real_app_version or meta["app_version"])
+        system_lang_pack = os.environ.get("BUNDLE_SYS_LANG_PACK", meta["system_lang_pack"])
+        system_lang_code = os.environ.get("BUNDLE_SYS_LANG_CODE", meta["system_lang_code"])
+        lang_pack = os.environ.get("BUNDLE_LANG_PACK", meta["lang_pack"])
+        lang_code = os.environ.get("BUNDLE_LANG_CODE", meta["lang_code"])
+
         cfg = {
             "app_id": int(CustomAPI.api_id),
             "app_hash": str(CustomAPI.api_hash),
-            "device": "tdata-export",
-            "sdk": "unknown",
-            "app_version": "unknown",
-            "system_lang_pack": "en",
-            "system_lang_code": "en",
-            "lang_pack": "tdesktop",
-            "lang_code": "en",
+            "device": device,
+            "sdk": sdk,
+            "app_version": app_version,
+            "system_lang_pack": system_lang_pack,
+            "system_lang_code": system_lang_code,
+            "lang_pack": lang_pack,
+            "lang_code": lang_code,
             "twoFA": None,
             "role": "",
             "id": getattr(me, 'id', None) if me else None,
-            "phone": None,
+            "phone": getattr(me, 'phone', None) if me else None,
             "username": getattr(me, 'username', None) if me else None,
             "date_of_birth": None,
             "date_of_birth_integrity": None,
