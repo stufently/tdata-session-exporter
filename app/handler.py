@@ -201,7 +201,8 @@ def _generate_device_meta(seed_key: str) -> dict:
 
 
 async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: Optional[str] = None,
-                                   api_id: Optional[int] = None, api_hash: Optional[str] = None) -> bool:
+                                   api_id: Optional[int] = None, api_hash: Optional[str] = None,
+                                   app_version_override: Optional[str] = None) -> bool:
     if not os.path.isdir(tdata_path):
         logger.error("Директория tdata не найдена: %s", tdata_path)
         return False
@@ -278,7 +279,7 @@ async def export_bundle_from_tdata(tdata_path: str, out_dir: str, basename: Opti
 
         device = os.environ.get("BUNDLE_DEVICE", real_device or meta["device"])
         sdk = os.environ.get("BUNDLE_SDK", real_sdk or meta["sdk"])
-        app_version = os.environ.get("BUNDLE_APP_VERSION", real_app_version or meta["app_version"])
+        app_version = (app_version_override or os.environ.get("BUNDLE_APP_VERSION") or real_app_version or meta["app_version"]) 
         system_lang_pack = os.environ.get("BUNDLE_SYS_LANG_PACK", meta["system_lang_pack"])
         system_lang_code = os.environ.get("BUNDLE_SYS_LANG_CODE", meta["system_lang_code"])
         lang_pack = os.environ.get("BUNDLE_LANG_PACK", meta["lang_pack"])
@@ -351,6 +352,7 @@ async def main():
     parser.add_argument("--export-basename", dest="export_basename", help="Базовое имя для файлов бандла (без расширения)")
     parser.add_argument("--export-api-id", dest="export_api_id", type=int, help="API_ID для бандла (необязательно)")
     parser.add_argument("--export-api-hash", dest="export_api_hash", help="API_HASH для бандла (необязательно)")
+    parser.add_argument("--version", dest="export_app_version", help="Принудительное значение app_version для JSON")
     args = parser.parse_args()
 
     # Режим экспорта бандла из tdata
@@ -361,6 +363,7 @@ async def main():
             basename=args.export_basename,
             api_id=args.export_api_id,
             api_hash=args.export_api_hash,
+            app_version_override=args.export_app_version,
         )
         if not ok:
             logger.error("Экспорт бандла из tdata не удался")
@@ -378,6 +381,7 @@ async def main():
             basename=args.export_basename,
             api_id=args.export_api_id,
             api_hash=args.export_api_hash,
+            app_version_override=args.export_app_version,
         )
         if not ok:
             logger.error("Экспорт бандла из tdata не удался")
@@ -392,6 +396,7 @@ async def main():
             tdata_path=auto_tdata,
             out_dir=os.getcwd(),
             basename=basename,
+            app_version_override=args.export_app_version,
         )
         if not ok:
             logger.error("Авто-экспорт бандла из tdata не удался")
