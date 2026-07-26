@@ -1,6 +1,10 @@
 openai==1.70
 telethon==1.38.1
-opentele @ git+https://github.com/thedemons/opentele.git
+# VCS-зависимость запинена по commit-SHA: без ref pip тянул текущий HEAD чужого
+# репозитория (thedemons/opentele) — любой его коммит попадал бы в наш образ.
+# 1a6f081 = HEAD ветки main на 2026-07-25 (последний коммит апстрима 2024-07-15),
+# т.е. ровно то, что ставилось до пина. Тегов у апстрима нет — только SHA.
+opentele @ git+https://github.com/thedemons/opentele.git@1a6f0816eac47ff3cb907af72ed9f8cbbbe8fba0
 requests==2.32.3
 python-dotenv==1.1.0
-pysocks
+pysocks==1.7.1

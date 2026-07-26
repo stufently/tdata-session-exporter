@@ -1,6 +1,11 @@
 services:
   autosender:
-    image: ghcr.io/stufently/tdata-session-exporter:latest
+    # Пин вместо :latest (2026-07-25). Тег перезаписывается КАЖДЫМ пушем в main
+    # (см. .github/workflows/ci.yml), т.е. `compose up` мог поднять произвольную
+    # новую сборку. Дайджест — то, на что `:latest` указывал на момент пина,
+    # т.е. заморозка текущего рабочего образа. После следующего осознанного
+    # релиза образа дайджест здесь надо обновить.
+    image: ghcr.io/stufently/tdata-session-exporter:latest@sha256:2c974906ff3eab14f6730f73b874415007a6f50a5f6005ce1f0dbe0e30fe0aa9
     container_name: extractor
     volumes:
       # Монтируем директории с данными
