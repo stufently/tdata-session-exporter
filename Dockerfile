@@ -1,4 +1,4 @@
-FROM python:3.12.9-slim AS builder
+FROM python:3.14.7-slim AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 
-FROM python:3.12.9-slim
+FROM python:3.14.7-slim
 
 ENV PYTHONUNBUFFERED=1
 
