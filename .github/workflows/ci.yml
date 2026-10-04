@@ -21,11 +21,11 @@ jobs:
       - uses: actions/checkout@v7
 
       # Third-party экшены запинены по commit-SHA (теги vN — mutable, а джоба
-      # держит GHCR push-токен). SHA = то, во что vN резолвились на 2026-07-25.
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      # держит GHCR push-токен). Каждый SHA фиксирует указанный рядом полный тег.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
