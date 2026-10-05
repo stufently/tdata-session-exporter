@@ -11,19 +11,18 @@
 
 ## Требования
 
-- Python 3.12 (образ `python:3.12.14-slim`)  
-- Пакет `tdesktop` или аналог для чтения `tdata` (см. `requirements.txt`)
+- Python 3.14 (образ `python:3.14.8-slim`, запинен по digest)  
+- `opentele-ng` — наш форк opentele без Qt (см. `requirements.txt`)
 
 ### Зависимости запинены (важно при правках)
 
-Все строки в `requirements.txt` зафиксированы по версии, включая VCS-зависимость:
-`opentele @ git+https://github.com/thedemons/opentele.git@1a6f0816…`. Раньше ref
-у git-URL не было — pip тянул текущий `HEAD` чужого репозитория, т.е. в образ
-попадал бы любой новый апстрим-коммит без нашего решения (supply-chain-риск).
-`1a6f0816eac47ff3cb907af72ed9f8cbbbe8fba0` — это HEAD ветки `main` на 2026-07-25
-(апстрим не обновлялся с 2024-07-15), то есть ровно то, что ставилось раньше;
-тегов у апстрима нет, поэтому пин только по SHA. Обновление зависимости = явная
-смена SHA в `requirements.txt` + пересборка образа.
+Все строки в `requirements.txt` зафиксированы по версии. С 05.10.2026 вместо
+VCS-зависимости `opentele @ git+https://github.com/thedemons/opentele.git@1a6f0816…`
+стоит `opentele-ng` — наш форк ([stufently/opentele](https://github.com/stufently/opentele),
+PyPI): апстрим не обновлялся с 2024-07-15, на Python 3.13+ падает уже при импорте и
+тянет PyQt5. Импорт в коде прежний — `opentele.td`, `opentele.api`,
+`opentele.exception`. Обновление зависимости = явная смена версии в
+`requirements.txt` + пересборка образа.
 
 Экшены в `.github/workflows/ci.yml` тоже запинены по commit-SHA: джоба билдит и
 пушит `ghcr.io/stufently/tdata-session-exporter:latest`, т.е. любой пуш в `main`
